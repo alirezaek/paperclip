@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { ReactNode } from "react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -21,11 +21,14 @@ const mockResourceMembershipsApi = vi.hoisted(() => ({
 const mockOpenNewProject = vi.hoisted(() => vi.fn());
 const mockSetBreadcrumbs = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/router", () => ({
-  Link: ({ children, to, ...props }: { children?: ReactNode; to: string }) => (
-    <a href={to} {...props}>{children}</a>
-  ),
-}));
+vi.mock("@/lib/router", async () => {
+  const { Link } = await import("react-router-dom");
+  return { Link };
+});
+
+function LocationProbe() {
+  return <output data-testid="location">{useLocation().pathname}</output>;
+}
 
 vi.mock("../context/CompanyContext", () => ({
   useCompany: () => ({ selectedCompanyId: "company-1" }),
@@ -176,9 +179,12 @@ describe("Projects", () => {
     await act(async () => {
       currentRoot.render(
         <QueryClientProvider client={queryClient}>
-          <ToastProvider>
-            <Projects />
-          </ToastProvider>
+          <MemoryRouter initialEntries={["/projects"]}>
+            <ToastProvider>
+              <Projects />
+            </ToastProvider>
+            <LocationProbe />
+          </MemoryRouter>
         </QueryClientProvider>,
       );
     });
@@ -306,5 +312,57 @@ describe("Projects", () => {
 
     expect(container.querySelector('button[aria-label="Star Alpha"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="Join Bravo"]')).not.toBeNull();
+    for (const button of container.querySelectorAll('[data-testid="projects-grid"] button')) {
+      expect(button.closest("a")).toBeNull();
+    }
+  });
+
+  it.each([
+    { label: "Star Alpha", projectId: "project-a", starred: false, change: { starred: true } },
+    { label: "Unstar Alpha", projectId: "project-a", starred: true, change: { starred: false } },
+    { label: "Join Bravo", projectId: "project-b", starred: false, change: { state: "joined" } },
+    { label: "Leave Alpha", projectId: "project-a", starred: false, change: { state: "left" } },
+  ])("$label mutates membership without navigating from the grid", async ({ label, projectId, starred, change }) => {
+    window.localStorage.setItem("paperclip.projects.viewMode", "grid");
+    mockResourceMembershipsApi.listMine.mockResolvedValue({
+      projectMemberships: { "project-b": "left" },
+      agentMemberships: {},
+      starredProjectIds: starred ? ["project-a"] : [],
+      updatedAt: null,
+    });
+    mockResourceMembershipsApi.updateProject.mockResolvedValue({
+      resourceType: "project",
+      resourceId: projectId,
+      state: change.state ?? "joined",
+      starredAt: change.starred ? new Date() : null,
+      updatedAt: new Date(),
+    });
+    await renderProjects();
+
+    const button = container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+    expect(button).not.toBeNull();
+    await act(async () => {
+      button!.click();
+    });
+    await flushReact();
+
+    expect(mockResourceMembershipsApi.updateProject).toHaveBeenCalledExactlyOnceWith(
+      "company-1", projectId, { state: undefined, starred: undefined, ...change },
+    );
+    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe("/projects");
+  });
+
+  it("navigates when the grid project link is activated", async () => {
+    window.localStorage.setItem("paperclip.projects.viewMode", "grid");
+    await renderProjects();
+    const link = container.querySelector<HTMLAnchorElement>('[data-testid="projects-grid"] a[href="/projects/alpha"]');
+    expect(link).not.toBeNull();
+    await act(async () => {
+      link!.click();
+    });
+    await flushReact();
+
+    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe("/projects/alpha");
+    expect(mockResourceMembershipsApi.updateProject).not.toHaveBeenCalled();
   });
 });

@@ -187,52 +187,53 @@ function ProjectListRow({ project, controls }: ProjectViewItemProps) {
 }
 
 /**
- * Grid tile for the same project data the list row shows. The whole card is the
- * link target; the membership and star controls stop propagation themselves.
+ * A stretched project link keeps the card clickable, while its action buttons
+ * remain separate interactive elements above the link's hit area.
  */
 function ProjectGridCard({ project, controls }: ProjectViewItemProps) {
   const taskCountLabel = formatTaskCount(project.taskCount ?? 0);
 
   return (
-    <Link
-      to={projectUrl(project)}
-      className="group block rounded-lg no-underline text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    <Card
+      interactive
+      className={cn(
+        "group relative isolate h-full gap-3 py-4",
+        controls.state === "left" && "text-foreground/55",
+      )}
     >
-      <Card
-        interactive
-        className={cn(
-          "h-full gap-3 py-4",
-          controls.state === "left" && "text-foreground/55",
-        )}
-      >
-        <div className="flex items-start gap-3 px-4">
-          <ProjectTile color={project.color ?? null} icon={project.icon ?? null} size="lg" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium" title={project.name}>
-              {project.name}
-            </p>
-            <p
-              className="mt-0.5 line-clamp-2 min-h-8 text-xs text-muted-foreground"
-              aria-hidden={!project.description}
-            >
-              {project.description ?? ""}
-            </p>
-          </div>
-          <StarToggle
-            size="row"
-            starred={controls.starred}
-            pending={controls.starPending}
-            resourceName={project.name}
-            onToggle={controls.onToggleStar}
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 text-xs text-muted-foreground">
-          <span className="tabular-nums" title={taskCountLabel}>{taskCountLabel}</span>
-          {project.budget && <span className="tabular-nums">{formatProjectBudget(project.budget)}</span>}
-          {project.targetDate && <span>{formatDate(project.targetDate)}</span>}
-        </div>
-        <div className="flex items-center justify-between gap-2 px-4">
-          <StatusBadge status={project.status} />
+      <div className="flex items-start gap-3 px-4">
+        <ProjectTile color={project.color ?? null} icon={project.icon ?? null} size="lg" />
+        <Link
+          to={projectUrl(project)}
+          className="min-w-0 flex-1 text-inherit no-underline after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+        >
+          <p className="truncate text-sm font-medium" title={project.name}>
+            {project.name}
+          </p>
+          <p
+            className="mt-0.5 line-clamp-2 min-h-8 text-xs text-muted-foreground"
+            aria-hidden={!project.description}
+          >
+            {project.description ?? ""}
+          </p>
+        </Link>
+        <StarToggle
+          size="row"
+          className="relative z-10"
+          starred={controls.starred}
+          pending={controls.starPending}
+          resourceName={project.name}
+          onToggle={controls.onToggleStar}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 text-xs text-muted-foreground">
+        <span className="tabular-nums" title={taskCountLabel}>{taskCountLabel}</span>
+        {project.budget && <span className="tabular-nums">{formatProjectBudget(project.budget)}</span>}
+        {project.targetDate && <span>{formatDate(project.targetDate)}</span>}
+      </div>
+      <div className="flex items-center justify-between gap-2 px-4">
+        <StatusBadge status={project.status} />
+        <div className="relative z-10">
           <MembershipAction
             state={controls.state}
             pending={controls.joinLeavePending}
@@ -242,8 +243,8 @@ function ProjectGridCard({ project, controls }: ProjectViewItemProps) {
             onLeave={controls.onLeave}
           />
         </div>
-      </Card>
-    </Link>
+      </div>
+    </Card>
   );
 }
 
